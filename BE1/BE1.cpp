@@ -7,7 +7,6 @@
 #include <set>
 #include <map>
 #include <utility>
-#include <limits>
 
 #define DTYPE double // if modifying datatype, remember to swap std::stod for the correct function in Mesh::readOFF
 
@@ -20,12 +19,14 @@ template <size_t dim>
 class Vertex {
 public:
 
-    Vertex(std::initializer_list<DTYPE> position, size_t index_adjacent_triangle): index_adjacent_triangle(index_adjacent_triangle) {
+    Vertex(std::initializer_list<DTYPE> position, size_t index_adjacent_triangle, bool is_virtual = false ):
+        index_adjacent_triangle(index_adjacent_triangle), is_virtual(is_virtual) {
         for (size_t i{ 0 }; i < dim; i++) this->position[i] = position.begin()[i];
     }
 
     DTYPE position[dim];
     size_t index_adjacent_triangle;
+    bool is_virtual;
 };
 
 class Triangle {
@@ -40,6 +41,7 @@ public:
 
     size_t vertices_indices[3];
     size_t neighbouring_triangles_indices[3];
+    bool is_virtual{ false };
 };
 
 template <size_t dim>
@@ -48,13 +50,17 @@ public:
 
     void addVertex(const Vertex<dim> & vertex) {
         vertices.push_back(vertex);
+        // check_virtual() ?
     }
 
     void addTriangle(const Triangle& triangle) {
         triangles.push_back(triangle);
+        // check_virtual() ?
     }
 
     void writeOFF(const char* filename) {
+
+        check_virtual();
 
         if (dim == 3) { // TODO : handle 2D meshes
 
@@ -66,23 +72,26 @@ public:
             }
 
             ofs << "OFF\n";
-            ofs << vertices.size() << " " << triangles.size() << " 0\n";
+            ofs << vertices.size() - nb_virtual_vertices << " " << triangles.size() - nb_virtual_triangles << " 0\n";
 
             for (size_t i{ 0 }; i < vertices.size(); i++) {
-                for (size_t j{ 0 }; j < dim; j++) {
-
-                    ofs << vertices[i].position[j];
-                    if (j < dim - 1) ofs << " ";
+                if (!vertices[i].is_virtual) {
+                    for (size_t j{ 0 }; j < dim; j++) {
+                        ofs << vertices[i].position[j];
+                        if (j < dim - 1) ofs << " ";
+                    }
+                    ofs << "\n";
                 }
-                ofs << "\n";
             }
 
             for (size_t i{ 0 }; i < triangles.size(); i++) {
-                ofs << "3";
-                for (size_t j{ 0 }; j < 3; j++) {
-                    ofs << " " << triangles[i].vertices_indices[j];
+                if (!triangles[i].is_virtual) {
+                    ofs << "3";
+                    for (size_t j{ 0 }; j < 3; j++) {
+                        ofs << " " << triangles[i].vertices_indices[j];
+                    }
+                    ofs << "\n";
                 }
-                ofs << "\n";
             }
 
             ofs.close();
@@ -108,7 +117,7 @@ public:
             size_t nb_vertices{ 0 }, nb_triangles{ 0 }, counter{ 0 }, bound1{ 3 }, bound2{ 0 }, bound3{ 0 };
             std::string string;
             while (ifs >> string) { // parsing using order (using variable "counter")
-                                    // therefore, some things like scomments (starting with "#") are not handled
+                                    // therefore, some things like comments (starting with "#") are not handled
 
                 if (counter == 1) { // 2nd line
 
@@ -175,13 +184,34 @@ public:
         else std::cout << "Can not load OFF file for a " << dim << "D mesh" << std::endl;
     }
 
+    void check_virtual() {
+
+        nb_virtual_vertices = 0;
+        for (size_t i{ 0 }; i < vertices.size(); i++)
+            if (vertices[i].is_virtual)
+                nb_virtual_vertices += 1;
+
+        nb_virtual_triangles = 0;
+        for (size_t i{ 0 }; i < triangles.size(); i++) {
+            bool triangle_is_virtual{ false };
+            for (size_t j{ 0 }; j < 3; j++)
+                if (vertices[triangles[i].vertices_indices[j]].is_virtual) 
+                    triangle_is_virtual = true;
+            triangles[i].is_virtual = triangle_is_virtual;
+            if (triangles[i].is_virtual) nb_virtual_triangles += 1;
+        }
+    }
+
+    size_t nb_virtual_vertices{ 0 };
+    size_t nb_virtual_triangles{ 0 };
+
     std::vector<Vertex<dim>> vertices;
     std::vector<Triangle> triangles;
 };
 
 
 int main() {
-
+    
     // Tetrahedron
     Mesh<3> tetrahedron;
     // It is not regular but ... simpler to draw in a standard(x, y, z) reference frame
@@ -199,7 +229,7 @@ int main() {
     Mesh<3> new_tetrahedron;
     new_tetrahedron.readOFF("tetrahedron_correct.off");
     new_tetrahedron.writeOFF("tetrahedron.off"); // this file must be identical to the correct one (read as text file)
-
+    
     // Square based pyramide
     Mesh<3> pyramide;
     pyramide.addVertex(Vertex<3>({ 0, 0, 0 }, 0));
@@ -220,24 +250,30 @@ int main() {
     new_pyramide.readOFF("pyramide_correct.off");
     new_pyramide.writeOFF("pyramide.off"); // this file must be identical to the correct one (read as text file)
 
-    //// Square based pyramide
-    //Mesh<3> bounding_box;
-    //bounding_box.addVertex(Vertex<3>({ 0, 0, 0 }, 0));
-    //bounding_box.addVertex(Vertex<3>({ 1, 0, 0 }, 0));
-    //bounding_box.addVertex(Vertex<3>({ 1, 1, 0 }, 1));
-    //bounding_box.addVertex(Vertex<3>({ 0, 1, 0 }, 0));
-    //bounding_box.addTriangle(Triangle({ 0, 4, 1 }, { 5, 0, 3 }));
-    //bounding_box.addTriangle(Triangle({ 1, 4, 2 }, { 2, 1, 4 }));
-    //bounding_box.writeOFF("bounding_box_correct.off"); // we can't visualize it in 3dviewer.net
+    // 2D bounding box
+    Mesh<3> bounding_box;
+    bounding_box.addVertex(Vertex<3>({ 0, 0, 0 }, 0));
+    bounding_box.addVertex(Vertex<3>({ 1, 0, 0 }, 0));
+    bounding_box.addVertex(Vertex<3>({ 1, 2, 0 }, 1));
+    bounding_box.addVertex(Vertex<3>({ 0, 2, 0 }, 0));
+    bounding_box.addVertex(Vertex<3>({ 0, 0, 0 }, 2, true));
+    bounding_box.addTriangle(Triangle({ 0, 1, 3 }, { 1, 3, 4 }));
+    bounding_box.addTriangle(Triangle({ 1, 2, 3 }, { 0, 5, 2 }));
+    bounding_box.addTriangle(Triangle({ 2, 4, 3 }, { 1, 5, 3 }));
+    bounding_box.addTriangle(Triangle({ 0, 3, 4 }, { 0, 2, 4 }));
+    bounding_box.addTriangle(Triangle({ 0, 4, 1 }, { 0, 3, 5 }));
+    bounding_box.addTriangle(Triangle({ 1, 4, 2 }, { 1, 4, 2 }));
+    bounding_box.writeOFF("bounding_box_correct.off");
+    // we can visualize it in 3dviewer.net (virtual virtices and triangles are not written in the OFF file)
 
-    //// Checking that we get the good results for the loading
-    //Mesh<3> new_bounding_box;
-    //new_bounding_box.readOFF("bounding_box_correct.off");
-    //new_bounding_box.writeOFF("bounding_box.off"); // this file must be identical to the correct one (read as text file)
+    // Checking that we get the good results for the loading
+    Mesh<3> new_bounding_box;
+    new_bounding_box.readOFF("bounding_box_correct.off");
+    new_bounding_box.writeOFF("bounding_box.off"); // this file must be identical to the correct one (read as text file)
     
     Mesh<3> queen; // we can visualize both in 3dviewer.net
     queen.readOFF("queen.off");
-    queen.writeOFF("check_queen.off");
+    queen.writeOFF("queen_check.off");
 
     return 0;
 }
