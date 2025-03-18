@@ -15,19 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="BE1.cpp">
-      <Filter>Fichiers sources</Filter>
-    </ClCompile>
-    <ClCompile Include="LaClasseStart.cpp">
-      <Filter>Fichiers sources</Filter>
-    </ClCompile>
-    <ClCompile Include="es_binaire_a_la_C.cpp">
-      <Filter>Fichiers sources</Filter>
-    </ClCompile>
-    <ClCompile Include="es_texte_a_la_C.cpp">
-      <Filter>Fichiers sources</Filter>
-    </ClCompile>
-    <ClCompile Include="es_texte_a_la_C++.cpp">
+    <ClCompile Include="TP2.cpp">
       <Filter>Fichiers sources</Filter>
     </ClCompile>
   </ItemGroup>

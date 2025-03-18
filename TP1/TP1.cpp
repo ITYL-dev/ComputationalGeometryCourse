@@ -167,7 +167,7 @@ public:
                                     triangles[i_bis].neighbouring_triangles_indices[map[edges[k]].second] = i;
                                 }
                                 else { // ... or 0
-                                    map[edges[0]] = std::pair<size_t, size_t>(i, k);
+                                    map[edges[k]] = std::pair<size_t, size_t>(i, k);
                                 }
                             }
                         }
@@ -229,7 +229,12 @@ int main() {
     Mesh<3> new_tetrahedron;
     new_tetrahedron.readOFF("tetrahedron_correct.off");
     new_tetrahedron.writeOFF("tetrahedron.off"); // this file must be identical to the correct one (read as text file)
-    
+
+    // We can compare this output to the tetrahedron creation to check if sewing is correct
+    for (int i{ 0 }; i < new_tetrahedron.triangles.size(); i++)
+        std::cout << new_tetrahedron.triangles[i].neighbouring_triangles_indices[0] << "|" << new_tetrahedron.triangles[i].neighbouring_triangles_indices[1] << "|" << new_tetrahedron.triangles[i].neighbouring_triangles_indices[2] << std::endl;
+
+
     // Square based pyramide
     Mesh<3> pyramide;
     pyramide.addVertex(Vertex<3>({ 0, 0, 0 }, 0));
@@ -249,6 +254,11 @@ int main() {
     Mesh<3> new_pyramide;
     new_pyramide.readOFF("pyramide_correct.off");
     new_pyramide.writeOFF("pyramide.off"); // this file must be identical to the correct one (read as text file)
+
+    // We can compare this output to the tetrahedron creation to check if sewing is correct
+    for (int i{ 0 }; i < new_pyramide.triangles.size(); i++)
+        std::cout << new_pyramide.triangles[i].neighbouring_triangles_indices[0] << "|" << new_pyramide.triangles[i].neighbouring_triangles_indices[1] << "|" << new_pyramide.triangles[i].neighbouring_triangles_indices[2] << std::endl;
+
 
     // 2D bounding box
     Mesh<3> bounding_box;
@@ -270,6 +280,11 @@ int main() {
     Mesh<3> new_bounding_box;
     new_bounding_box.readOFF("bounding_box_correct.off");
     new_bounding_box.writeOFF("bounding_box.off"); // this file must be identical to the correct one (read as text file)
+    
+    // We can compare this output to the tetrahedron creation to check if sewing is correct
+    for (int i{ 0 }; i < new_bounding_box.triangles.size(); i++)
+        std::cout << new_bounding_box.triangles[i].neighbouring_triangles_indices[0] << "|" << new_bounding_box.triangles[i].neighbouring_triangles_indices[1] << "|" << new_bounding_box.triangles[i].neighbouring_triangles_indices[2] << std::endl;
+
     
     Mesh<3> queen; // we can visualize both in 3dviewer.net
     queen.readOFF("queen.off");
