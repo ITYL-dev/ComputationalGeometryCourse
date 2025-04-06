@@ -420,6 +420,8 @@ public:
         addVertex(new_vertex);
 
         Triangle& triangle{ triangles[triangle_index] };
+
+        // copy of the original triangle original properties
         int triangle_vertices_indices[3];
         int triangle_neighb_indices[3];
         for (int k{ 0 }; k < 3; k++) {
@@ -427,19 +429,47 @@ public:
             triangle_neighb_indices[k] = triangle.neighbouring_triangles_indices[k];
         }
 
-        triangle.vertices_indices[2] = new_vertex_index;
-        triangle.neighbouring_triangles_indices[0] = triangles.size();
-        triangle.neighbouring_triangles_indices[1] = triangles.size() + 1;
+        triangle.vertices_indices[2] = new_vertex_index; // reduce original triangle to one of the sub-triangles
 
+        // update original triangle neighbours with the soon to be created triangles
+        int new_triangle1_index = triangles.size();
+        int new_triangle2_index = triangles.size() + 1;
+        triangle.neighbouring_triangles_indices[0] = new_triangle1_index;
+        triangle.neighbouring_triangles_indices[1] = new_triangle2_index;
+
+        // create 2 new sub-triangles
         addTriangle(Triangle(
             { triangle_vertices_indices[1], triangle_vertices_indices[2], new_vertex_index },
-            { triangle.neighbouring_triangles_indices[1], triangle_index, triangle_neighb_indices[0] }
+            { new_triangle2_index, triangle_index, triangle_neighb_indices[0] }
         ));
 
         addTriangle(Triangle(
             { triangle_vertices_indices[2], triangle_vertices_indices[0], new_vertex_index },
-            { triangle_index, triangle.neighbouring_triangles_indices[0], triangle_neighb_indices[1] }
+            { triangle_index, new_triangle1_index, triangle_neighb_indices[1] }
         ));
+
+        // update now invalid adjacent triangle for the vertex replaced in the original original triangle
+        vertices[triangle_vertices_indices[2]].index_adjacent_triangle = new_triangle1_index;
+
+        // update neighouring triangles with new sub-triangles indices
+        
+        // finding the original triangle in the first neighbouring triangle
+        Triangle& firstNT{ triangles[triangle_neighb_indices[0]] };
+        int original_triangle_local_index{ -1 };
+        for (int j{ 0 }; j < 3; j++)
+            if (firstNT.neighbouring_triangles_indices[j] == triangle_index)
+                original_triangle_local_index = j;
+        if (original_triangle_local_index == -1) throw("Sewing problem: original triangle not found in neighbouring triangle");
+        firstNT.neighbouring_triangles_indices[original_triangle_local_index] = new_triangle1_index; // update
+
+        // finding the original triangle in the second neighbouring triangle
+        Triangle& secondNT{ triangles[triangle_neighb_indices[1]] };
+        original_triangle_local_index = -1 ;
+        for (int j{ 0 }; j < 3; j++)
+            if (secondNT.neighbouring_triangles_indices[j] == triangle_index)
+                original_triangle_local_index = j;
+        if (original_triangle_local_index == -1) throw("Sewing problem: original triangle not found in neighbouring triangle");
+        secondNT.neighbouring_triangles_indices[original_triangle_local_index] = new_triangle2_index; // update
     }
 
     void handlePointOutsideConvexHull(Vertex& new_vertex) { // not const, we need to update the neighbouring triangle index
@@ -449,7 +479,7 @@ public:
         if (nb_virtual_vertices == 1) { // only work if infinite virtual vertex is used
 
             std::vector<std::pair<int, int>> visibleBoundaryEdges;
-            int virtualTriangleToSplitIndex{ -1 };
+            int virtual_triangle_to_split_index{ -1 };
 
             Vector& P{ new_vertex.position };
 
@@ -466,7 +496,11 @@ public:
                             virtual_vertex_local_index = j;
                     if (virtual_vertex_local_index == -1) throw("Virtual vertex not found in a virtual triangle");
 
-                    const Triangle& edgeT{ triangles[T.neighbouring_triangles_indices[virtual_vertex_local_index]] }; // this triangle is on the edge of the convex hull
+                    int edgeT_index{ T.neighbouring_triangles_indices[virtual_vertex_local_index] };
+
+                    //std::cout << "Virtual triangle : " << i << ", connected real triangle : " << edgeT_index << std::endl;
+
+                    const Triangle& edgeT{ triangles[edgeT_index] }; // this triangle is on the edge of the convex hull
 
                     int virtual_triangle_local_index{ -1 };
                     for (int j{ 0 }; j < 3; j++)
@@ -474,26 +508,28 @@ public:
                             virtual_triangle_local_index = j;
                     if (virtual_vertex_local_index == -1) throw("Virtual triangle not found in supposedly connected triangle");
 
-                    std::pair<int, int> boundaryEdge(edgeT.vertices_indices[(virtual_triangle_local_index + 1) % 3], edgeT.vertices_indices[(virtual_triangle_local_index + 2) % 3]);
+                    std::pair<int, int> boundaryEdge(edgeT.vertices_indices[virtual_triangle_local_index], edgeT.vertices_indices[(virtual_triangle_local_index + 1) % 3]);
 
                     Vector A{ vertices[boundaryEdge.first].position };
                     Vector B{ vertices[boundaryEdge.second].position };
 
+                    /*
                     std::cout << "Edge vertices: " << boundaryEdge.first << ", " << boundaryEdge.second << " (triangle " << i << ")" << std::endl;
                     std::cout << "A: " << A[0] << ", " << A[1] << ", " << A[2] << std::endl;
                     std::cout << "B: " << B[0] << ", " << B[1] << ", " << B[2] << std::endl;
                     std::cout << "P: " << P[0] << ", " << P[1] << ", " << P[2] << std::endl;
+                    */
 
                     if (!predicate_orientation(A, B, P)) { // visibility test of boundary edge (A,B) from P ( triangle ABP must be of negative orientation)
-                        std::cout << "Visible" << std::endl;
+                        //std::cout << "Visible" << std::endl;
                         visibleBoundaryEdges.push_back(boundaryEdge);
-                        virtualTriangleToSplitIndex = i; // last valid (connected to visible boundary) virtual triangle to split
+                        virtual_triangle_to_split_index = i; // last valid (connected to visible boundary) virtual triangle to split
                     }
                 }   
             }
-            if (virtualTriangleToSplitIndex == -1) throw("Did not find a boundary edge");
+            if (virtual_triangle_to_split_index == -1) throw("Did not find a boundary edge");
 
-            splitTriangle(virtualTriangleToSplitIndex, new_vertex);
+            splitTriangle(virtual_triangle_to_split_index, new_vertex);
 
             /*
                 bool isOutside = false;
@@ -623,6 +659,21 @@ public:
     void toSphereSpace() {
         for (int i{ 0 }; i < vertices.size(); i++)
             vertices[i].position[2] = vertices[i].position[0] * vertices[i].position[0] + vertices[i].position[1] * vertices[i].position[1];
+    }
+
+    void debug() {
+        std::cout << "Vertices : " << std::endl;
+        for (int i{ 0 }; i < vertices.size(); i++) {
+            std::cout << "Index : " << i << ", is virtual ? " << vertices[i].is_virtual;
+            std::cout << ", Position : " << vertices[i].position[0] << ", " << vertices[i].position[1] << ", " << vertices[i].position[2];
+            std::cout << ", Connected triangle index: " << vertices[i].index_adjacent_triangle << std::endl;
+        }
+        std::cout << "Triangles : " << std::endl;
+        for (int i{ 0 }; i < triangles.size(); i++) {
+            std::cout << "Index : " << i << ", is virtual ? " << triangles[i].is_virtual;
+            std::cout << ", Vertices indices : " << triangles[i].vertices_indices[0] << ", " << triangles[i].vertices_indices[1] << ", " << triangles[i].vertices_indices[2];
+            std::cout << ", Connected triangles indices : " << triangles[i].neighbouring_triangles_indices[0] << ", " << triangles[i].neighbouring_triangles_indices[1] << ", " << triangles[i].neighbouring_triangles_indices[2] << std::endl;
+        }
     }
 
     int nb_virtual_vertices{ 0 }; // must be 0 or 1 (handling point outside convex hull won't work if 0)
@@ -904,20 +955,35 @@ int main() {
     small_triangulation.addTriangle(Triangle({ 2, 0, 3 }, { 3, 0, 1 }));
     small_triangulation.addTriangle(Triangle({ 0, 1, 3 }, { 0, 2, 1 }));
 
-    // Insert point inside the convex hull
-    small_triangulation.insertPoint(Vector(0.1, 0.2, 0));
-    // small_triangulation.insertPoint(Vector(0.3, 0.4, 0));
+    // Insert point inside the convex hull    
+    small_triangulation.insertPoint(Vector(0.25, 0.25, 0));
 
-    // Flip an edge
-    //small_triangulation.flipEdge(0, 0); 
-    // Cancel the flip
-    //small_triangulation.flipEdge(0, 2); 
-
-    // Insert points outside the convex hull
-    //small_triangulation.insertPoint(Vector(-1, -1, 0));
+    // Insert point outside the convex hull to expand it
     small_triangulation.insertPoint(Vector(1, 1, 0));
 
-    // Display (optionnaly) the infinite vertex and write the off file
+    // Insert point inside the newly expanded convex hull
+    small_triangulation.insertPoint(Vector(0.75, 0.75, 0));
+
+    small_triangulation.debug();
+
+    // Flip an edge
+    small_triangulation.flipEdge(4, 2);
+    small_triangulation.debug(); // à verif
+    // Cancel the flip
+    small_triangulation.flipEdge(4, 1);
+    small_triangulation.debug(); // à verif
+
+    // Flip an edge
+    small_triangulation.flipEdge(4, 0);
+    small_triangulation.debug(); // à verif
+    // Cancel the flip
+    small_triangulation.flipEdge(4, 2);
+    small_triangulation.debug(); // à verif
+
+    // Insert another point outside the convex hull, expansion need flips in this case
+    //small_triangulation.insertPoint(Vector(-1, -1, 0));
+    
+    // Write the off file with the virtual infinite vertex
     small_triangulation.vertices[0].is_virtual = false;
     small_triangulation.writeOFF("small_triangulation.off");
 
