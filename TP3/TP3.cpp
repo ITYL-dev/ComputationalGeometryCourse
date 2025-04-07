@@ -523,13 +523,13 @@ public:
                     if (!predicate_orientation(A, B, P)) { // visibility test of boundary edge (A,B) from P ( triangle ABP must be of negative orientation)
                         //std::cout << "Visible" << std::endl;
                         visibleBoundaryEdges.push_back(boundaryEdge);
-                        virtual_triangle_to_split_index = i; // last valid (connected to visible boundary) virtual triangle to split
+                        virtual_triangle_to_split_index = i; 
                     }
                 }   
             }
             if (virtual_triangle_to_split_index == -1) throw("Did not find a boundary edge");
 
-            splitTriangle(virtual_triangle_to_split_index, new_vertex);
+            splitTriangle(virtual_triangle_to_split_index, new_vertex); // last valid (connected to visible boundary) virtual triangle is splitted
 
             /*
                 bool isOutside = false;
@@ -603,9 +603,9 @@ public:
 
         // Getting surrounding triangles to update
         int T1N_i{ T1.neighbouring_triangles_indices[(local_edge_index + 2) % 3] };
-        Triangle T1N{ triangles[T1N_i] }; // triange opposite of v2 initially
+        Triangle& T1N{ triangles[T1N_i] }; // triange opposite of v2 initially
         int T2N_i{ T2.neighbouring_triangles_indices[(opposite_local_index + 2) % 3] };
-        Triangle T2N{ triangles[T2N_i] }; // triange opposite of v1 initially
+        Triangle& T2N{ triangles[T2N_i] }; // triange opposite of v1 initially
 
         // Find the opposite vertex in T1N
         int opposite_local_index_T1N{ -1 };
@@ -662,7 +662,7 @@ public:
     }
 
     void debug() {
-        std::cout << "Vertices : " << std::endl;
+        std::cout << "=================== DEBUG ===================\nVertices : " << std::endl;
         for (int i{ 0 }; i < vertices.size(); i++) {
             std::cout << "Index : " << i << ", is virtual ? " << vertices[i].is_virtual;
             std::cout << ", Position : " << vertices[i].position[0] << ", " << vertices[i].position[1] << ", " << vertices[i].position[2];
@@ -964,22 +964,24 @@ int main() {
     // Insert point inside the newly expanded convex hull
     small_triangulation.insertPoint(Vector(0.75, 0.75, 0));
 
-    small_triangulation.debug();
+    small_triangulation.debug(); // checked manually for sewing 
 
     // Flip an edge
     small_triangulation.flipEdge(4, 2);
-    small_triangulation.debug(); // à verif
-    // Cancel the flip
+    small_triangulation.debug(); // checked manually for sewing
+
+    // Flip the resulting edge
     small_triangulation.flipEdge(4, 1);
-    small_triangulation.debug(); // à verif
+    small_triangulation.debug(); // checked manually for sewing
 
-    // Flip an edge
+    // Flip the resulting edge
     small_triangulation.flipEdge(4, 0);
-    small_triangulation.debug(); // à verif
-    // Cancel the flip
+    small_triangulation.debug();
+    // Flip the resulting edge
     small_triangulation.flipEdge(4, 2);
-    small_triangulation.debug(); // à verif
-
+    small_triangulation.debug(); // here we get back the same structure there was before any flip :
+    // a flip is like rotating an edge and "pushing" triangles along !
+    
     // Insert another point outside the convex hull, expansion need flips in this case
     //small_triangulation.insertPoint(Vector(-1, -1, 0));
     
