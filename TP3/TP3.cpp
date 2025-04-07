@@ -480,7 +480,6 @@ public:
         if (nb_virtual_vertices == 1) { // only work if infinite virtual vertex is used
 
             std::vector<std::tuple<int, int, int>> visibleBoundaryEdges;
-            int virtual_triangle_to_split_index{ -1 };
 
             Vector& P{ new_vertex.position };
 
@@ -528,49 +527,17 @@ public:
                     if (!predicate_orientation(A, B, P)) { // visibility test of boundary edge (A,B) from P ( triangle ABP must be of negative orientation)
                         //std::cout << "Visible" << std::endl;
                         visibleBoundaryEdges.push_back(boundaryEdge);
-                        virtual_triangle_to_split_index = i; 
                     }
                 }   
             }
-            if (virtual_triangle_to_split_index == -1) throw("Did not find a boundary edge");
+            if (visibleBoundaryEdges.empty()) throw("Did not find a boundary edge");
 
-            splitTriangle(virtual_triangle_to_split_index, new_vertex); // last valid (connected to visible boundary) virtual triangle is splitted
+            std::tuple<int, int, int> starterEdge{ visibleBoundaryEdges.back() };
             visibleBoundaryEdges.pop_back();
+            splitTriangle(std::get<2>(starterEdge), new_vertex); // last valid (connected to visible boundary) virtual triangle is splitted
+            
 
-            /*
-                bool isOutside = false;
-                for (int j{ 0 }; j < 3; j++) {
-                    int ai{ T.vertices_indices[j] };
-                    int bi{ T.vertices_indices[(j + 1) % 3] };
-                    Vector A{ vertices[ai].position };
-                    Vector B{ vertices[bi].position };
 
-                    // Check if the edge is "visible" from the new point
-                    if (predicate_orientation(A, B, P)) {
-                        visibleBoundaryEdges.push_back({ ai, bi });
-                        isOutside = true;
-                    }
-                }
-
-                if (isOutside) {
-                    trianglesToRemove.insert(i);
-                }
-            }
-
-            // 2. Remove old triangles that are no longer valid
-            std::vector<Triangle> newTriangles;
-            for (int i = 0; i < triangles.size(); i++) {
-                if (trianglesToRemove.find(i) == trianglesToRemove.end()) {
-                    newTriangles.push_back(triangles[i]);
-                }
-            }
-            triangles = std::move(newTriangles);
-
-            // 3. Create new triangles connecting the new point to the convex hull boundary
-            for (auto& edge : boundaryEdges) {
-                addTriangle(Triangle({ edge.first, edge.second, new_vertex_index }, { -1, -1, -1 }));
-            }
-            */
         }
         else {
             throw("No unique infinite vertex, handling new point outside the convex hull is not supported");
