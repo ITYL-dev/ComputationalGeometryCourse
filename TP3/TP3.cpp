@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <functional>
 #include <thread>
+#include <tuple>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -478,7 +479,7 @@ public:
 
         if (nb_virtual_vertices == 1) { // only work if infinite virtual vertex is used
 
-            std::vector<std::pair<int, int>> visibleBoundaryEdges;
+            std::vector<std::tuple<int, int, int>> visibleBoundaryEdges;
             int virtual_triangle_to_split_index{ -1 };
 
             Vector& P{ new_vertex.position };
@@ -508,10 +509,14 @@ public:
                             virtual_triangle_local_index = j;
                     if (virtual_vertex_local_index == -1) throw("Virtual triangle not found in supposedly connected triangle");
 
-                    std::pair<int, int> boundaryEdge(edgeT.vertices_indices[virtual_triangle_local_index], edgeT.vertices_indices[(virtual_triangle_local_index + 1) % 3]);
+                    std::tuple<int, int, int> boundaryEdge(
+                        edgeT.vertices_indices[virtual_triangle_local_index],
+                        edgeT.vertices_indices[(virtual_triangle_local_index + 1) % 3],
+                        i // index of the virtual triangle connected to the convex hull edge (we want to flip it to expand the convex hull)
+                    );
 
-                    Vector A{ vertices[boundaryEdge.first].position };
-                    Vector B{ vertices[boundaryEdge.second].position };
+                    Vector A{ vertices[std::get<0>(boundaryEdge)].position };
+                    Vector B{ vertices[std::get<1>(boundaryEdge)].position };
 
                     /*
                     std::cout << "Edge vertices: " << boundaryEdge.first << ", " << boundaryEdge.second << " (triangle " << i << ")" << std::endl;
@@ -530,6 +535,7 @@ public:
             if (virtual_triangle_to_split_index == -1) throw("Did not find a boundary edge");
 
             splitTriangle(virtual_triangle_to_split_index, new_vertex); // last valid (connected to visible boundary) virtual triangle is splitted
+            visibleBoundaryEdges.pop_back();
 
             /*
                 bool isOutside = false;
