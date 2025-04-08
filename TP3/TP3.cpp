@@ -473,6 +473,69 @@ public:
         secondNT.neighbouring_triangles_indices[original_triangle_local_index] = new_triangle2_index; // update
     }
 
+    void flipEdge(int triangle_index, int local_edge_index) {
+
+        int T1_i{ triangle_index };
+        Triangle& T1{ triangles[T1_i] };
+
+        int v1_i{ T1.vertices_indices[(local_edge_index + 1) % 3] }; // start of selected edge
+        int v2_i{ T1.vertices_indices[(local_edge_index + 2) % 3] }; // end of selected edge
+
+        int T2_i{ T1.neighbouring_triangles_indices[local_edge_index] };
+        Triangle& T2{ triangles[T2_i] }; // connected triangle, through edge (v1, v2)
+
+        // Find the opposite vertex in the connected triangle
+        int opposite_local_index{ -1 };
+        for (int i{ 0 }; i < 3; i++)
+            if (T2.vertices_indices[(i + 1) % 3] == v2_i && T2.vertices_indices[(i + 2) % 3] == v1_i) // edge vertex should be in the reversed order
+                opposite_local_index = i;
+        if (opposite_local_index == -1) throw("Sewing problem: cannot find corresponding edge in connected triangle");
+
+        int v1bis_i{ T2.vertices_indices[opposite_local_index] };
+        int v2bis_i{ T1.vertices_indices[local_edge_index] };
+
+        // Flip the edge
+        T1.vertices_indices[(local_edge_index + 1) % 3] = v1bis_i;
+        T2.vertices_indices[(opposite_local_index + 1) % 3] = v2bis_i;
+
+        // Update vertex adjacent triangle where it has potentially been invalidated
+        vertices[v2_i].index_adjacent_triangle = T1_i;
+        vertices[v1_i].index_adjacent_triangle = T2_i;
+
+        // Getting surrounding triangles to update
+        int T1N_i{ T1.neighbouring_triangles_indices[(local_edge_index + 2) % 3] };
+        Triangle& T1N{ triangles[T1N_i] }; // triange opposite of v2 initially
+        int T2N_i{ T2.neighbouring_triangles_indices[(opposite_local_index + 2) % 3] };
+        Triangle& T2N{ triangles[T2N_i] }; // triange opposite of v1 initially
+
+        // Find the opposite vertex in T1N
+        int opposite_local_index_T1N{ -1 };
+        for (int i{ 0 }; i < 3; i++)
+            if (T1N.vertices_indices[(i + 1) % 3] == v1_i && T1N.vertices_indices[(i + 2) % 3] == v2bis_i)
+                opposite_local_index_T1N = i;
+        if (opposite_local_index_T1N == -1) throw("Sewing problem: cannot find corresponding edge in connected triangle");
+
+        // Update the corresponding neighbouring triangle in T1N (from T1 to T2)
+        T1N.neighbouring_triangles_indices[opposite_local_index_T1N] = T2_i;
+
+        // Find the opposite vertex in T2N
+        int opposite_local_index_T2N{ -1 };
+        for (int i{ 0 }; i < 3; i++)
+            if (T2N.vertices_indices[(i + 1) % 3] == v2_i && T2N.vertices_indices[(i + 2) % 3] == v1bis_i)
+                opposite_local_index_T2N = i;
+
+        if (opposite_local_index_T2N == -1) throw("Sewing problem: cannot find corresponding edge in connected triangle");
+
+        // Update the corresponding neighbouring triangle in T2N (from T2 to T1)
+        T2N.neighbouring_triangles_indices[opposite_local_index_T2N] = T1_i;
+
+        // Updating T1 and T2 neighbouring triangles
+        T1.neighbouring_triangles_indices[local_edge_index] = T2N_i; // from T2 to T2N
+        T2.neighbouring_triangles_indices[opposite_local_index] = T1N_i; // from T1 to T1N
+        T1.neighbouring_triangles_indices[(local_edge_index + 2) % 3] = T2_i; // from T1N to T2
+        T2.neighbouring_triangles_indices[(opposite_local_index + 2) % 3] = T1_i; // from T2N to T1
+    }
+
     void handlePointOutsideConvexHull(Vertex& new_vertex) { // not const, we need to update the neighbouring triangle index
 
         check_virtual();
@@ -504,15 +567,17 @@ public:
 
                     int virtual_triangle_local_index{ -1 };
                     for (int j{ 0 }; j < 3; j++)
-                        if (edgeT.vertices_indices[j] == i)
+                        if (edgeT.neighbouring_triangles_indices[j] == i)
                             virtual_triangle_local_index = j;
-                    if (virtual_vertex_local_index == -1) throw("Virtual triangle not found in supposedly connected triangle");
+                    if (virtual_triangle_local_index == -1) throw("Virtual triangle not found in supposedly connected triangle");
 
                     std::tuple<int, int, int> boundaryEdge(
-                        edgeT.vertices_indices[virtual_triangle_local_index],
                         edgeT.vertices_indices[(virtual_triangle_local_index + 1) % 3],
+                        edgeT.vertices_indices[(virtual_triangle_local_index + 2) % 3],
                         i // index of the virtual triangle connected to the convex hull edge (we want to flip it to expand the convex hull)
                     );
+
+                    //std::cout << "Local index of virtual triangle in real triangle : " << virtual_vertex_local_index << " Edge : " << std::get<0>(boundaryEdge) << " " << std::get<1>(boundaryEdge) << std::endl;
 
                     Vector A{ vertices[std::get<0>(boundaryEdge)].position };
                     Vector B{ vertices[std::get<1>(boundaryEdge)].position };
@@ -535,77 +600,62 @@ public:
             std::tuple<int, int, int> starterEdge{ visibleBoundaryEdges.back() };
             visibleBoundaryEdges.pop_back();
             splitTriangle(std::get<2>(starterEdge), new_vertex); // last valid (connected to visible boundary) virtual triangle is splitted
+
+            std::tuple<int, int, int> backwardEdge{ starterEdge };
+            std::tuple<int, int, int> forwardEdge{ starterEdge };
+
+            int nb_processed_edge{ 0 };
             
+            // expanding convex hull by flipping specific edges
+            while (nb_processed_edge < visibleBoundaryEdges.size()) {
 
+                int previous_edge_i{ -1 };
+                int next_edge_i{ -1 };
 
+                for (int i{ 0 }; i < visibleBoundaryEdges.size(); i++) {
+
+                    if (std::get<1>(visibleBoundaryEdges[i]) == std::get<0>(backwardEdge)) previous_edge_i = i;
+                    if (std::get<0>(visibleBoundaryEdges[i]) == std::get<1>(forwardEdge)) next_edge_i = i;
+                }
+
+                if (previous_edge_i != -1) {
+
+                    std::tuple<int, int, int> currentEdge{ visibleBoundaryEdges[previous_edge_i] };
+
+                    int edge_to_flip_local_index{ -1 };
+                    for (int j{ 0 }; j < 3; j++)
+                        if (triangles[std::get<2>(currentEdge)].vertices_indices[j] == std::get<0>(currentEdge))
+                            edge_to_flip_local_index = j;
+                    if (edge_to_flip_local_index == -1) throw("Mismatch between bondary edge and corresponding virtual triangle");
+
+                    flipEdge(std::get<2>(currentEdge), edge_to_flip_local_index);
+
+                    backwardEdge = currentEdge;
+                    nb_processed_edge++;
+                }
+
+                if (next_edge_i != -1) {
+
+                    std::tuple<int, int, int> currentEdge{ visibleBoundaryEdges[next_edge_i] };
+
+                    int edge_to_flip_local_index{ -1 };
+                    for (int j{ 0 }; j < 3; j++)
+                        if (triangles[std::get<2>(currentEdge)].vertices_indices[j] == std::get<1>(currentEdge))
+                            edge_to_flip_local_index = j;
+                    if (edge_to_flip_local_index == -1) throw("Mismatch between bondary edge and corresponding virtual triangle");
+
+                    flipEdge(std::get<2>(currentEdge), edge_to_flip_local_index);
+
+                    forwardEdge = currentEdge;
+                    nb_processed_edge++;
+                }
+            }
+
+            check_virtual();
         }
         else {
             throw("No unique infinite vertex, handling new point outside the convex hull is not supported");
         }
-    }
-
-
-    void flipEdge(int triangle_index, int local_edge_index) {
-
-        int T1_i{ triangle_index };
-        Triangle& T1{ triangles[T1_i] };
-
-        int v1_i{ T1.vertices_indices[(local_edge_index + 1) % 3] }; // start of selected edge
-        int v2_i{ T1.vertices_indices[(local_edge_index + 2) % 3] }; // end of selected edge
-
-        int T2_i{ T1.neighbouring_triangles_indices[local_edge_index] };
-        Triangle& T2{ triangles[T2_i] }; // connected triangle, through edge (v1, v2)
-
-        // Find the opposite vertex in the connected triangle
-        int opposite_local_index{ -1 };
-        for (int i{ 0 }; i < 3; i++)
-            if (T2.vertices_indices[(i + 1) % 3] == v2_i && T2.vertices_indices[(i + 2) % 3] == v1_i) // edge vertex should be in the reversed order
-                opposite_local_index = i;
-        if (opposite_local_index == -1) throw("Sewing problem: cannot find corresponding edge in connected triangle");
-        
-        int v1bis_i{ T2.vertices_indices[opposite_local_index] };
-        int v2bis_i{ T1.vertices_indices[local_edge_index] };
-
-        // Flip the edge
-        T1.vertices_indices[(local_edge_index + 1) % 3] = v1bis_i;
-        T2.vertices_indices[(opposite_local_index + 1) % 3] = v2bis_i;
-
-        // Update vertex adjacent triangle where it has potentially been invalidated
-        vertices[v2_i].index_adjacent_triangle = T1_i;
-        vertices[v1_i].index_adjacent_triangle = T2_i;
-
-        // Getting surrounding triangles to update
-        int T1N_i{ T1.neighbouring_triangles_indices[(local_edge_index + 2) % 3] };
-        Triangle& T1N{ triangles[T1N_i] }; // triange opposite of v2 initially
-        int T2N_i{ T2.neighbouring_triangles_indices[(opposite_local_index + 2) % 3] };
-        Triangle& T2N{ triangles[T2N_i] }; // triange opposite of v1 initially
-
-        // Find the opposite vertex in T1N
-        int opposite_local_index_T1N{ -1 };
-        for (int i{ 0 }; i < 3; i++)
-            if (T1N.vertices_indices[(i + 1) % 3] == v1_i  && T1N.vertices_indices[(i + 2) % 3] == v2bis_i) 
-                opposite_local_index_T1N = i;
-        if (opposite_local_index_T1N == -1) throw("Sewing problem: cannot find corresponding edge in connected triangle");
-
-        // Update the corresponding neighbouring triangle in T1N (from T1 to T2)
-        T1N.neighbouring_triangles_indices[opposite_local_index_T1N] = T2_i;
-
-        // Find the opposite vertex in T2N
-        int opposite_local_index_T2N{ -1 };
-        for (int i{ 0 }; i < 3; i++)
-            if (T2N.vertices_indices[(i + 1) % 3] == v2_i && T2N.vertices_indices[(i + 2) % 3] == v1bis_i)
-                opposite_local_index_T2N = i;
-            
-        if (opposite_local_index_T2N == -1) throw("Sewing problem: cannot find corresponding edge in connected triangle");
-
-        // Update the corresponding neighbouring triangle in T2N (from T2 to T1)
-        T2N.neighbouring_triangles_indices[opposite_local_index_T2N] = T1_i;
-
-        // Updating T1 and T2 neighbouring triangles
-        T1.neighbouring_triangles_indices[local_edge_index] = T2N_i; // from T2 to T2N
-        T2.neighbouring_triangles_indices[opposite_local_index] = T1N_i; // from T1 to T1N
-        T1.neighbouring_triangles_indices[(local_edge_index + 2) % 3] = T2_i; // from T1N to T2
-        T2.neighbouring_triangles_indices[(opposite_local_index + 2) % 3] = T1_i; // from T2N to T1
     }
 
     void insertPoint(const Vector& new_vertex_pos) {
@@ -629,13 +679,93 @@ public:
         }
     }
 
+    std::pair<std::vector<double>, std::vector<int>> naiveTriangulationFromFile(const std::string& filename) {
+
+        std::ifstream ifs;
+        ifs.open(filename);
+        if (ifs.bad()) {
+            std::cout << "Can not read file " << filename << "\n";
+            exit(1);
+        }
+
+        int nb_points{ 0 };
+        std::vector<Vector> points;
+        std::vector<int> index_map; // map vertex index to point index, i.e. points[i] corresponds to vertices[index_map[i]]
+        std::vector<double> elevation;
+
+        // read everything and put it in points
+        std::string line;
+        int line_counter{ 0 };
+        while (std::getline(ifs, line)) {
+
+            std::vector<std::string> v_line{ split(line) };
+
+            if (line_counter == 0) {
+                nb_points = std::stoi(v_line[0]);
+                points.reserve(nb_points);
+                index_map.reserve(nb_points);
+                elevation.reserve(nb_points);
+            }
+            else if (line_counter <= nb_points) points.emplace_back(Vector(std::stod(v_line[0]), std::stod(v_line[1]), std::stod(v_line[2])));
+
+            line_counter++;
+        }
+
+        addVertex(Vertex({ 0, 0, 10 }, 1, true)); // add a first vertex : "infinite" virtual vertex
+
+        // Creating a first triangle from the points (in the plane), along with 3 virtual triangle to connect it to the infinite vertex
+
+        Vector A{ points[0] };
+        addVertex(Vertex({ A[0], A[1], 0 }, 0)); // we operate in the plane for now
+
+        Vector B{ points[1] };
+        addVertex(Vertex({ B[0], B[1], 0 }, 0)); // we operate in the plane for now
+
+        // looking for a third point C so that triangle ABC faces upward (we would be very unlucky if it does not exist)
+        int c_i{ 2 };
+        Vector C{ points[c_i] };
+        C[2] = 0;
+        while (!predicate_orientation(A, B, C)) {
+            c_i++;
+            C = points[c_i]; // if C does not exist, will go out of bounds here
+            C[2] = 0;
+        }
+
+        addVertex(Vertex({ C[0], C[1], 0 }, 0));
+        addTriangle(Triangle({ 1, 2, 3 }, { 2, 3, 1 }));
+        addTriangle(Triangle({ 1, 0, 2 }, { 2, 0, 3 }));
+        addTriangle(Triangle({ 2, 0, 3 }, { 3, 0, 1 }));
+        addTriangle(Triangle({ 0, 1, 3 }, { 0, 2, 1 }));
+
+        // insert the points in the mesh through naive triangulation
+        for (int i{ 0 }; i < nb_points; i++) {
+
+            Vector P{ points[i] };
+            elevation.push_back(P[2]);
+
+            if (i == 0) index_map.push_back(1);
+            else if (i == 1) index_map.push_back(2);
+            else if (i == c_i) index_map.push_back(3);
+            else {
+
+                P[2] = 0;
+                insertPoint(P);
+
+                if (i < c_i) index_map.push_back(i + 2);
+                else index_map.push_back(i + 1);
+            }         
+        }
+
+        return std::pair<std::vector<double>, std::vector<int>>(elevation, index_map);
+    }
+
     void toSphereSpace() {
         for (int i{ 0 }; i < vertices.size(); i++)
             vertices[i].position[2] = vertices[i].position[0] * vertices[i].position[0] + vertices[i].position[1] * vertices[i].position[1];
     }
 
     void debug() {
-        std::cout << "=================== DEBUG ===================\nVertices : " << std::endl;
+        std::cout << "====================================== DEBUG ======================================\nVertices : " << std::endl;
         for (int i{ 0 }; i < vertices.size(); i++) {
             std::cout << "Index : " << i << ", is virtual ? " << vertices[i].is_virtual;
             std::cout << ", Position : " << vertices[i].position[0] << ", " << vertices[i].position[1] << ", " << vertices[i].position[2];
@@ -915,6 +1045,9 @@ int main() {
     // *           TP3           *
     // ***************************
 
+
+    // Test on a small handcrafted mesh to check our features
+
     Mesh small_triangulation;
     
     small_triangulation.addVertex(Vertex({0, 0, 10}, 1, true)); // "infinite" virtual vertex
@@ -937,33 +1070,51 @@ int main() {
     // Insert point inside the newly expanded convex hull
     small_triangulation.insertPoint(Vector(0.75, 0.75, 0));
 
-    small_triangulation.debug(); // checked manually for sewing 
+    //small_triangulation.debug(); // checked manually for sewing 
 
     // Flip an edge
     small_triangulation.flipEdge(4, 2);
-    small_triangulation.debug(); // checked manually for sewing
+    //small_triangulation.debug(); // checked manually for sewing
 
     // Flip the resulting edge
     small_triangulation.flipEdge(4, 1);
-    small_triangulation.debug(); // checked manually for sewing
+    //small_triangulation.debug(); // checked manually for sewing
 
     // Flip the resulting edge
     small_triangulation.flipEdge(4, 0);
-    small_triangulation.debug();
+    //small_triangulation.debug();
     // Flip the resulting edge
     small_triangulation.flipEdge(4, 2);
-    small_triangulation.debug(); // here we get back the same structure there was before any flip :
+    //small_triangulation.debug(); // here we get back the same structure there was before any flip :
     // a flip is like rotating an edge and "pushing" triangles along !
     
-    // Insert another point outside the convex hull, expansion need flips in this case
-    //small_triangulation.insertPoint(Vector(-1, -1, 0));
+    // Insert others points outside the convex hull, whose expansion needs flips in this case
+    small_triangulation.insertPoint(Vector(-1, -1, 0));
+    small_triangulation.insertPoint(Vector(-0.8, 0, 0));
+    small_triangulation.insertPoint(Vector(2, 1.2, 0));
+    small_triangulation.insertPoint(Vector(-2, 2, 0));
+    small_triangulation.insertPoint(Vector(0.5, -0.5, 0));
+    small_triangulation.insertPoint(Vector(1, -1, 0));
+    small_triangulation.insertPoint(Vector(0, 3, 0));
     
     // Write the off file with the virtual infinite vertex
-    small_triangulation.vertices[0].is_virtual = false;
+    small_triangulation.vertices[0].is_virtual = true; // set to false to visualize infinite virtual vertex and virtual triangles
+    //small_triangulation.toSphereSpace(); // to lift the triangulation on the paraboloid
     small_triangulation.writeOFF("small_triangulation.off");
 
-    // triangulation.toSphereSpace(); Lift the triangulation on the paraboloid
 
+    // Test on one of the provided point clouds
+
+    std::string filename("alpes_random_1");
+
+    Mesh triangulation;
+    std::pair<std::vector<double>, std::vector<int>> res{ triangulation.naiveTriangulationFromFile(filename + ".txt") };
+    triangulation.writeOFF(filename + "_naive.off");
+
+    std::vector<double> elevation{ res.first };
+    std::vector<int> index_map{ res.second };
+    for (int i{ 0 }; i < elevation.size(); i++) triangulation.vertices[index_map[i]].position[2] = elevation[i];
+    triangulation.writeOFF(filename + "_with_elevation.off");
     
     return 0;
 }
