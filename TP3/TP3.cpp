@@ -97,6 +97,21 @@ bool predicate_orientation(Vector p, Vector q, Vector r, Vector e_axis = Vector(
     return dot(cross(q - p, r - p), e_axis) > 0; // true: positive, false: negative
 }
 
+Vector liftingOperator(const Vector& point) {
+
+    Vector output{ point };
+    output[2] = output[1] * output[1] + output[0] * output[0];
+
+    return output;
+}
+
+bool predicate_in_circumscribed_cirle(const Vector& p, const Vector& q, const Vector& r, const Vector& s) { 
+
+    Vector phi_p{ liftingOperator(p) }, phi_q{ liftingOperator(q) }, phi_r{ liftingOperator(r) }, phi_s{ liftingOperator(s) };
+
+    return dot(cross(phi_q - phi_p, phi_r - phi_p), phi_s - phi_p) < 0;
+}
+
 Vector blueRedColorScale(double val, double min_val = -1, double max_val = 1) {
     // linearly map a value between min_val and max_val to a RGB values
     // min_val = blue, 0 = white, max_val = red
@@ -306,7 +321,7 @@ public:
 
                 for (int k{ 0 }; k < 3; k++) {
 
-                    std::set<int> edge = std::set<int>{ triangles[i].vertices_indices[(k + 1) % 3], triangles[i].vertices_indices[(k + 2) % 3] };
+                    std::set<int> edge{ triangles[i].vertices_indices[(k + 1) % 3], triangles[i].vertices_indices[(k + 2) % 3] };
 
                     if (map.find(edge) != map.end()) {
 
@@ -761,7 +776,7 @@ public:
 
     void toSphereSpace() {
         for (int i{ 0 }; i < vertices.size(); i++)
-            vertices[i].position[2] = vertices[i].position[0] * vertices[i].position[0] + vertices[i].position[1] * vertices[i].position[1];
+            vertices[i].position = liftingOperator(vertices[i].position);
     }
 
     void debug() {
@@ -779,6 +794,94 @@ public:
         }
     }
 
+    std::pair<int, int> translateEdgeRepresentation(const std::pair<int, int> edge) {
+
+        int v1_i{ edge.first };
+        int v2_i{ edge.second };
+        const Vertex& v1{ vertices[v1_i] };
+        const Vertex& v2{ vertices[v2_i] };
+
+        // find a triangle with both v1 and v2
+
+        int NT_i{ v1.index_adjacent_triangle }; // NT = neighbouring triangle
+        int first_NT_i{ NT_i };
+        Triangle NT{ triangles[NT_i] };
+        bool NT_with_edge{ false };
+        int v1_local_edge{ -1 };
+        int v2_local_edge{ -1 };
+
+        do {
+
+            v1_local_edge = -1;
+            v2_local_edge = -1;
+            for (int j{ 0 }; j < 3; j++) {
+                if (NT.vertices_indices[j] == v1_i) v1_local_edge = j;
+                if (NT.vertices_indices[j] == v2_i) v2_local_edge = j;
+            }
+            if (v1_local_edge == -1) throw("Sewing problem : a vertex points to a triangle it does not belong to");
+
+            if (v2_local_edge == -1) { // try next triangle
+                NT_i = NT.neighbouring_triangles_indices[(v1_local_edge + 1) % 3];
+                NT = triangles[NT_i];
+            }
+            else {
+                NT_with_edge = true;
+            }
+        }
+        while (!NT_with_edge && NT_i != first_NT_i);
+        if (NT_i == first_NT_i) throw("(v1, v2) is not an edge : no triangle in common");
+
+        int opposite_NT_local_index{ (v1_local_edge + 1) % 3 };
+
+        int opposite_NT_i{ NT.neighbouring_triangles_indices[opposite_NT_local_index] };
+        const Triangle& opposite_NT{ triangles[opposite_NT_i] }; // triangle connected to NT through edge (v1, v2)
+
+        // not necessary but allow to catch error
+        int NT_local_edge{ -1 };
+        for (int j{ 0 }; j < 3; j++)
+            if (opposite_NT.neighbouring_triangles_indices[j] == NT_i) NT_local_edge = j;
+        if (NT_local_edge == -1) throw("Sewing problem : a triangle points to another triangle that does not point back to it");
+
+        return std::pair<int, int>(NT_i, opposite_NT_local_index);
+    }
+
+    bool isEdgeDelaunay(int triangle_index, int edge_local_index) {
+
+        const Triangle& T1{ triangles[triangle_index] };
+
+        int T2_i{ T1.neighbouring_triangles_indices[edge_local_index] };
+        const Triangle& T2{ triangles[T2_i] };
+
+        int T1_local_index{ -1 }; // in T2
+        for (int j{ 0 }; j < 3; j++)
+            if (T2.neighbouring_triangles_indices[j] == triangle_index) T1_local_index = j;
+        if (T1_local_index == -1) throw("Sewing problem : a triangle points to another triangle that does not point back to it");
+
+        bool edge_partially_delaunay_1{ predicate_in_circumscribed_cirle(
+            vertices[T1.vertices_indices[0]].position, vertices[T1.vertices_indices[1]].position, vertices[T1.vertices_indices[2]].position, // T1
+            vertices[T2.vertices_indices[T1_local_index]].position // vertex opposite T1 in T2
+        )};
+
+        bool edge_partially_delaunay_2{ predicate_in_circumscribed_cirle(
+            vertices[T2.vertices_indices[0]].position, vertices[T2.vertices_indices[1]].position, vertices[T2.vertices_indices[2]].position, // T2
+            vertices[T1.vertices_indices[edge_local_index]].position // vertex opposite T2 in T1
+        ) };
+
+        return edge_partially_delaunay_1 && edge_partially_delaunay_2;
+    }
+
+    void buildLawsonQueue() {
+
+        for (int i{ 0 }; i < triangles.size(); i++) {
+            for (int j{ 0 }; j < 3; j++) {
+
+                // edge in front of j (local index) in triangle i
+                std::set<int> edge{ (triangles[i].vertices_indices[j] + 1) % 3, (triangles[i].vertices_indices[j] + 2) % 3 };
+                if (!isEdgeDelaunay(i, j)) non_delaunay_edges.insert(edge); // set enforce unicity
+            }
+        }
+    }
+
     int nb_virtual_vertices{ 0 }; // must be 0 or 1 (handling point outside convex hull won't work if 0)
     int nb_virtual_triangles{ 0 };
 
@@ -788,6 +891,7 @@ public:
     std::vector<Triangle> triangles;
     std::vector<double> u;
     std::vector<double> Lu;
+    std::set<std::set<int>> non_delaunay_edges; // lawson queue
 };
 
 
