@@ -13,6 +13,7 @@
 #include <functional>
 #include <thread>
 #include <tuple>
+#include <filesystem>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -261,6 +262,10 @@ public:
         // coloring of the vertex can be enabled : mapping function u to a color using provided color scale
 
         check_virtual();
+
+        std::filesystem::path file_path(filename);
+        std::filesystem::path parent_dir{ file_path.parent_path() };
+        std::filesystem::create_directories(parent_dir);
 
         std::ofstream ofs;
         ofs.open(filename);
@@ -812,6 +817,8 @@ public:
         // returns z values and a mapping from the point indices to vertices indices, i.e. z[i] corresponds to vertices[index_map[i]]
         // coordinates are multiplied by scaleUp (used for paraboloid visualisation on a reasonable scale)
 
+        std::cout << "Building naive triangulation from points in the .txt file ..." << std::endl;
+
         this->scaleUp = scaleUp;
 
         std::ifstream ifs;
@@ -976,6 +983,8 @@ public:
         // lawson algorithm : flip all non locally delaunay edges, diagonal of convex quadrilateral
         // until there are none left. At each flip we check if edges should be added to the queue
 
+        std::cout << "Improving the triangulation (Delaunay) using Lawson algorithm ..." << std::endl;
+
         int c{ 0 };
 
         buildLawsonQueue();
@@ -1062,13 +1071,10 @@ public:
 
 
 int main() {
-
-    /*
     
     // ***************************
     // *           TP1           *
     // ***************************
-    
 
     // Tetrahedron
     Mesh tetrahedron;
@@ -1081,12 +1087,12 @@ int main() {
     tetrahedron.addTriangle(Triangle({ 0, 3, 1 }, { 3, 0, 2 }));
     tetrahedron.addTriangle(Triangle({ 0, 2, 3 }, { 3, 1, 0 }));
     tetrahedron.addTriangle(Triangle({ 1, 3, 2 }, { 2, 0, 1 }));
-    tetrahedron.writeOFF("off_files/tetrahedron_correct.off"); // we can visualize it in 3dviewer.net
+    tetrahedron.writeOFF("files/TP1_out/tetrahedron_correct.off"); // we can visualize it in 3dviewer.net
 
     // Checking that we get the good results for the loading
     Mesh new_tetrahedron;
-    new_tetrahedron.readOFF("off_files/tetrahedron_correct.off");
-    new_tetrahedron.writeOFF("off_files/tetrahedron.off"); // this file must be identical to the correct one (read as text file)
+    new_tetrahedron.readOFF("files/TP1_out/tetrahedron_correct.off");
+    new_tetrahedron.writeOFF("files/TP1_out/tetrahedron.off"); // this file must be identical to the correct one (read as text file)
     new_tetrahedron.debug(); // to check sewing by comparing to tetrahedron creation
     
     // Square based pyramide
@@ -1102,12 +1108,12 @@ int main() {
     pyramide.addTriangle(Triangle({ 0, 3, 4 }, { 2, 4, 0 }));
     pyramide.addTriangle(Triangle({ 0, 4, 1 }, { 5, 0, 3 }));
     pyramide.addTriangle(Triangle({ 1, 4, 2 }, { 2, 1, 4 }));
-    pyramide.writeOFF("off_files/pyramide_correct.off"); // we can visualize it in 3dviewer.net
+    pyramide.writeOFF("files/TP1_out/pyramide_correct.off"); // we can visualize it in 3dviewer.net
 
     // Checking that we get the good results for the loading
     Mesh new_pyramide;
-    new_pyramide.readOFF("off_files/pyramide_correct.off");
-    new_pyramide.writeOFF("off_files/pyramide.off"); // this file must be identical to the correct one (read as text file)
+    new_pyramide.readOFF("files/TP1_out/pyramide_correct.off");
+    new_pyramide.writeOFF("files/TP1_out/pyramide.off"); // this file must be identical to the correct one (read as text file)
     new_pyramide.debug(); // to check sewing by comparing to pyramide creation
 
     // 2D bounding box
@@ -1116,35 +1122,35 @@ int main() {
     bounding_box.addVertex(Vertex({ 1, 0, 0 }, 0));
     bounding_box.addVertex(Vertex({ 1, 2, 0 }, 1));
     bounding_box.addVertex(Vertex({ 0, 2, 0 }, 0));
-    bounding_box.addVertex(Vertex({ 0, 0, 10 }, 2, true));
+    bounding_box.addVertex(Vertex({ 0, 0, 10 }, 2, false));
     bounding_box.addTriangle(Triangle({ 0, 1, 3 }, { 1, 3, 4 }));
     bounding_box.addTriangle(Triangle({ 1, 2, 3 }, { 0, 5, 2 }));
     bounding_box.addTriangle(Triangle({ 2, 4, 3 }, { 1, 5, 3 }));
     bounding_box.addTriangle(Triangle({ 0, 3, 4 }, { 0, 2, 4 }));
     bounding_box.addTriangle(Triangle({ 0, 4, 1 }, { 0, 3, 5 }));
     bounding_box.addTriangle(Triangle({ 1, 4, 2 }, { 1, 4, 2 }));
-    bounding_box.writeOFF("off_files/bounding_box_correct.off");
+    bounding_box.writeOFF("files/TP1_out/bounding_box_correct.off");
     // we can visualize it in 3dviewer.net (virtual vertices and triangles are not written in the OFF file)
-
+    
     // Checking that we get the good results for the loading
     Mesh new_bounding_box;
-    new_bounding_box.readOFF("off_files/bounding_box_correct.off");
-    new_bounding_box.writeOFF("off_files/bounding_box.off"); // this file must be identical to the correct one (read as text file)
+    new_bounding_box.readOFF("files/TP1_out/bounding_box_correct.off");
+    new_bounding_box.writeOFF("files/TP1_out/bounding_box.off"); // this file must be identical to the correct one (read as text file)
     new_bounding_box.debug(); // to check sewing by comparing to bounding_box creation
 
     system("pause");
 
     Mesh queen; // we can visualize both in 3dviewer.net
-    queen.readOFF("off_files/queen.off", 1000); // x1000 sur les longueurs, pour que delta_t ne soit pas trop petit, ...
-    queen.writeOFF("off_files/queen_check.off");
-
+    queen.readOFF("files/queen.off", 1000); // x1000 sur les longueurs, pour que delta_t ne soit pas trop petit, ...
+    queen.writeOFF("files/TP1_out/queen_check.off");
+    
 
     // ***************************
     // *           TP2           *
     // ***************************
-
+   
     system("pause");
-
+    
     // ... car le pas temporel doit être suffisament petit pour que le schéma d'approximation numérique soit stable,
     // le pas temporel dépend de h²/alpha avec h la plus petite longueur du maillage  
 
@@ -1156,6 +1162,8 @@ int main() {
     double max_t{ 10 }; // sec, temps de simulation
     double alpha{ 1 }; // m²/s, diffusivité thermique, suppose que les positions sont exprimés en mètres
 
+    std::cout << "Timestep| Vertex temperature | Laplacian of temperature at vertex" << std::endl;
+
     for (double t{ 0 }; t < max_t; t += delta_t) {
 
         new_pyramide.computeLaplacian();
@@ -1163,7 +1171,7 @@ int main() {
         for (int i{ 0 };  i < new_pyramide.u.size(); i++) {
 
             if (i != 0) new_pyramide.u[i] += delta_t * alpha * new_pyramide.Lu[i];
-            std::cout << t+delta_t << "|" << new_pyramide.u[i] << "|" << new_pyramide.Lu[i] << std::endl;
+            std::cout << t+delta_t << "| " << new_pyramide.u[i] << " | " << new_pyramide.Lu[i] << std::endl;
         }
         std::cout << "---------------------------------" << std::endl;
     }
@@ -1195,11 +1203,11 @@ int main() {
     std::cout << "Minimum of absolute curvature: " << min_curve << std::endl;
     std::cout << "Maximum of absolute curvature: " << max_curve << std::endl;
 
-    queen.writeOFF("off_files/queen_curvature_greyScale.off", true, greyColorScale, min_curve, max_curve);
-    queen.writeOFF("off_files/queen_curvature_redScale.off", true,redColorScale, min_curve, max_curve);
-    queen.writeOFF("off_files/queen_curvature_greyScale_saturated.off", true, greyColorScale, min_curve, 0.5 * max_curve);
-    queen.writeOFF("off_files/queen_curvature_redScale_saturated.off", true, redColorScale, min_curve, 0.5 * max_curve);
-
+    //queen.writeOFF("files/TP2_out/queen_curvature_greyScale.off", true, greyColorScale, min_curve, max_curve);
+    queen.writeOFF("files/TP2_out/queen_curvature_redScale.off", true,redColorScale, min_curve, max_curve);
+    //queen.writeOFF("files/TP2_out/queen_curvature_greyScale_saturated.off", true, greyColorScale, min_curve, 0.5 * max_curve);
+    queen.writeOFF("files/TP2_out/queen_curvature_redScale_saturated.off", true, redColorScale, min_curve, 0.5 * max_curve);
+    
     // Enregistrement de la courbure
     for (int i_global{ 0 }; i_global < queen.u.size(); i_global++) {
 
@@ -1259,14 +1267,14 @@ int main() {
     std::cout << "Minimum of signed curvature: " << min_curve << std::endl;
     std::cout << "Maximum of signed curvature: " << max_curve << std::endl;
 
-    queen.writeOFF("off_files/queen_signed_curvature.off", true, blueRedColorScale, min_curve, max_curve);
-    queen.writeOFF("off_files/queen_signed_curvature_saturated.off", true, blueRedColorScale, 0.5 * min_curve, 0.5 * max_curve);
+    queen.writeOFF("files/TP2_out/queen_signed_curvature.off", true, blueRedColorScale, min_curve, max_curve);
+    queen.writeOFF("files/TP2_out/queen_signed_curvature_saturated.off", true, blueRedColorScale, 0.5 * min_curve, 0.5 * max_curve);
     
     system("pause");
     
     // Test diffusion thermique sur queen.off
     delta_t = 75e-2; // si + grand (ex: 0.77), le schéma diverge
-    int max_iter = 15e4; // nombre d'itérations
+    int max_iter = 15e2; // nombre d'itérations (ne pas le diminuer sous 15e2, 15e4 montre une diffusion significative)
     max_t = delta_t * max_iter;
     for (int i{ 0 }; i < queen.u.size(); i++) queen.u[i] = 0; // reset car des valeurs de courbures étaient présentes dans u
     queen.u[NEZ] = T;
@@ -1287,26 +1295,24 @@ int main() {
         }
 
         if ((iter % (max_iter / 30) == 0) || (iter < 5000 && iter % 1000 == 0) || (iter < 1000 && iter % 200 == 0)) {
-            // on enregistre toutes les 200it jusqu'à 1000it, toutes les 1000it jusqu'à 5000, puis toutes les 5000
+            // on enregistre toutes les 200it jusqu'à 1000it, toutes les 1000it jusqu'à 5000, puis toutes les 5000 (si max_iter = 15e4)
             
             std::string str_t{ std::to_string(iter) };
-            queen.writeOFF("off_files/temperature/queen_greyScale_" + str_t + ".off", true, greyColorScale, 0, T);
-            queen.writeOFF("off_files/temperature/queen_redScale_" + str_t + ".off", true, redColorScale, 0, T);
+            queen.writeOFF("files/TP2_out/temperature/queen_greyScale_" + str_t + ".off", true, greyColorScale, 0, T);
+            //queen.writeOFF("files/TP2_out/temperature/queen_redScale_" + str_t + ".off", true, redColorScale, 0, T);
         }
     }
     
-    queen.writeOFF("off_files/temperature/queen_greyScale_final.off", true, greyColorScale, 0, T);
-    queen.writeOFF("off_files/temperature/queen_redScale_final.off", true, redColorScale, 0, T);
+    queen.writeOFF("files/TP2_out/temperature/queen_greyScale_final.off", true, greyColorScale, 0, T);
+    //queen.writeOFF("files/TP2_out/temperature/queen_redScale_final.off", true, redColorScale, 0, T);
 
     
-
-
     // ***************************
     // *           TP3           *
     // ***************************
 
     system("pause");
-    */
+
     // Test on a small handcrafted mesh to check our features
 
     Mesh small_triangulation;
@@ -1344,7 +1350,7 @@ int main() {
     // Flip the resulting edge
     small_triangulation.flipEdge(4, 0);
     //small_triangulation.debug();
-    // 
+
     // Flip the resulting edge
     small_triangulation.flipEdge(4, 2);
     //small_triangulation.debug(); // here we get back the same structure there was before any flip :
@@ -1361,36 +1367,36 @@ int main() {
     
     // Write the off file with optionnaly the virtual infinite vertex
     small_triangulation.vertices[0].is_virtual = true; // set to false to visualize infinite virtual vertex and virtual triangles
-    small_triangulation.writeOFF("off_files/small_triangulation.off");
+    small_triangulation.writeOFF("files/TP3_out/small_triangulation.off");
 
     // Use lawson algorithm to make the triangulation delaunay    
     small_triangulation.delaunay();
-    small_triangulation.writeOFF("off_files/small_triangulation_delaunay.off");
+    small_triangulation.writeOFF("files/TP3_out/small_triangulation_delaunay.off");
 
     // Lift the triangulation on the paraboloid 
     small_triangulation.toSphereSpace(); // to lift the triangulation on the paraboloid
-    small_triangulation.writeOFF("off_files/small_triangulation_lifted.off");
+    small_triangulation.writeOFF("files/TP3_out/small_triangulation_lifted.off");
 
     // Test on one of the provided point clouds
     std::string filename("alpes_random_2");
 
     Mesh triangulation;
-    std::pair<std::vector<double>, std::vector<int>> res{ triangulation.naiveTriangulationFromFile(filename + ".txt", 0.00015) };
-    triangulation.writeOFF("off_files/" + filename + "_naive.off");
+    std::pair<std::vector<double>, std::vector<int>> res{ triangulation.naiveTriangulationFromFile("files/" + filename + ".txt", 0.00015) };
+    triangulation.writeOFF("files/TP3_out/" + filename + "_naive.off");
 
     // Apply Lawson algorithm
     triangulation.delaunay();
-    triangulation.writeOFF("off_files/" + filename + "_delaunay.off");
+    triangulation.writeOFF("files/TP3_out/" + filename + "_delaunay.off");
 
     // Lift on the paraboloid
     triangulation.toSphereSpace();
-    triangulation.writeOFF("off_files/" + filename + "_lifted.off");
+    triangulation.writeOFF("files/TP3_out/" + filename + "_lifted.off");
 
     // Reapply elevation
     std::vector<double> elevation{ res.first };
     std::vector<int> index_map{ res.second };
     for (int i{ 0 }; i < elevation.size(); i++) triangulation.vertices[index_map[i]].position[2] = elevation[i];
-    triangulation.writeOFF("off_files/" + filename + "_elevation.off");
-    
+    triangulation.writeOFF("files/TP3_out/" + filename + "_elevation.off");
+
     return 0;
 }
