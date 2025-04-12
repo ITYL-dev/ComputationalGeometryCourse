@@ -1075,7 +1075,7 @@ int main() {
     // ***************************
     // *           TP1           *
     // ***************************
-
+    
     // Tetrahedron
     Mesh tetrahedron;
     // It is not regular but ... simpler to draw in a standard(x, y, z) reference frame
@@ -1115,20 +1115,21 @@ int main() {
     new_pyramide.readOFF("files/TP1_out/pyramide_correct.off");
     new_pyramide.writeOFF("files/TP1_out/pyramide.off"); // this file must be identical to the correct one (read as text file)
     new_pyramide.debug(); // to check sewing by comparing to pyramide creation
-
+    
     // 2D bounding box
     Mesh bounding_box;
+
+    bounding_box.addVertex(Vertex({ 0, 0, 10 }, 2, true)); // virtual infini vertex
     bounding_box.addVertex(Vertex({ 0, 0, 0 }, 0));
     bounding_box.addVertex(Vertex({ 1, 0, 0 }, 0));
     bounding_box.addVertex(Vertex({ 1, 2, 0 }, 1));
     bounding_box.addVertex(Vertex({ 0, 2, 0 }, 0));
-    bounding_box.addVertex(Vertex({ 0, 0, 10 }, 2, false));
-    bounding_box.addTriangle(Triangle({ 0, 1, 3 }, { 1, 3, 4 }));
-    bounding_box.addTriangle(Triangle({ 1, 2, 3 }, { 0, 5, 2 }));
-    bounding_box.addTriangle(Triangle({ 2, 4, 3 }, { 1, 5, 3 }));
-    bounding_box.addTriangle(Triangle({ 0, 3, 4 }, { 0, 2, 4 }));
-    bounding_box.addTriangle(Triangle({ 0, 4, 1 }, { 0, 3, 5 }));
-    bounding_box.addTriangle(Triangle({ 1, 4, 2 }, { 1, 4, 2 }));
+    bounding_box.addTriangle(Triangle({ 1, 2, 4 }, { 1, 5, 2 }));
+    bounding_box.addTriangle(Triangle({ 2, 3, 4 }, { 4, 0, 3 }));
+    bounding_box.addTriangle(Triangle({ 1, 0, 2 }, { 3, 0, 5 }));
+    bounding_box.addTriangle(Triangle({ 3, 2, 0 }, { 2, 4, 3 }));
+    bounding_box.addTriangle(Triangle({ 4, 3, 0 }, { 3, 5, 4 }));
+    bounding_box.addTriangle(Triangle({ 4, 0, 1 }, { 2, 0, 4 }));
     bounding_box.writeOFF("files/TP1_out/bounding_box_correct.off");
     // we can visualize it in 3dviewer.net (virtual vertices and triangles are not written in the OFF file)
     
@@ -1137,7 +1138,7 @@ int main() {
     new_bounding_box.readOFF("files/TP1_out/bounding_box_correct.off");
     new_bounding_box.writeOFF("files/TP1_out/bounding_box.off"); // this file must be identical to the correct one (read as text file)
     new_bounding_box.debug(); // to check sewing by comparing to bounding_box creation
-
+    
     system("pause");
 
     Mesh queen; // we can visualize both in 3dviewer.net
@@ -1378,7 +1379,7 @@ int main() {
     small_triangulation.writeOFF("files/TP3_out/small_triangulation_lifted.off");
 
     // Test on one of the provided point clouds
-    std::string filename("alpes_random_2");
+    std::string filename("alpes_poisson");
 
     Mesh triangulation;
     std::pair<std::vector<double>, std::vector<int>> res{ triangulation.naiveTriangulationFromFile("files/" + filename + ".txt", 0.00015) };
@@ -1397,6 +1398,6 @@ int main() {
     std::vector<int> index_map{ res.second };
     for (int i{ 0 }; i < elevation.size(); i++) triangulation.vertices[index_map[i]].position[2] = elevation[i];
     triangulation.writeOFF("files/TP3_out/" + filename + "_elevation.off");
-
+    
     return 0;
 }
