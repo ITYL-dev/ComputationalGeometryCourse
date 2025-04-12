@@ -1300,11 +1300,11 @@ int main() {
             std::string str_t{ std::to_string(iter) };
             queen.writeOFF("files/TP2_out/temperature/queen_greyScale_" + str_t + ".off", true, greyColorScale, 0, T);
             //queen.writeOFF("files/TP2_out/temperature/queen_redScale_" + str_t + ".off", true, redColorScale, 0, T);
-        }
+        }   
     }
     
-    queen.writeOFF("files/TP2_out/temperature/queen_greyScale_final.off", true, greyColorScale, 0, T);
-    //queen.writeOFF("files/TP2_out/temperature/queen_redScale_final.off", true, redColorScale, 0, T);
+    queen.writeOFF("files/TP2_out/temperature/queen_greyScale_" + std::to_string(max_iter) + ".off", true, greyColorScale, 0, T);
+    //queen.writeOFF("files/TP2_out/temperature/queen_redScale_" + std::to_string(max_iter) + ".off", true, redColorScale, 0, T);
 
     
     // ***************************
