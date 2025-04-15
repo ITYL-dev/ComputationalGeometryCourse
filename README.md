@@ -1,5 +1,7 @@
 # ComputationalGeometryCourse
 
-Need c++ 17
+Need C++ 17
+
 Tested on Visual Studio 2022
+
 Use OpenMP (optionnal)

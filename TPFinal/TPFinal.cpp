@@ -855,7 +855,8 @@ public:
             line_counter++;
         }
 
-        addVertex(Vertex({ 0, 0, 10 }, 1, true)); // add a first vertex : "infinite" virtual vertex
+        addVertex(Vertex({ 0, 0, -10 }, 1, true)); // add a first vertex : "infinite" virtual vertex
+        // originally, z values were positive, but it makes so that the triangle are pointed inward the shape, which makes for an ugly render on some software (like Mesh Lab)
 
         // Creating a first triangle from the points (in the plane), along with 3 virtual triangle to connect it to the infinite vertex
 
@@ -1082,7 +1083,7 @@ int main() {
     tetrahedron.addVertex(Vertex({ 0, 0, 0 }, 0));
     tetrahedron.addVertex(Vertex({ 1, 0, 0 }, 0));
     tetrahedron.addVertex(Vertex({ 0, 1, 0 }, 0));
-    tetrahedron.addVertex(Vertex({ 0, 0, 1 }, 1));
+    tetrahedron.addVertex(Vertex({ 0, 0, -1 }, 1)); // originally, z values were positive, but it makes so that the triangle are pointed inward the shape, which makes for an ugly render on some software (like Mesh Lab)
     tetrahedron.addTriangle(Triangle({ 0, 1, 2 }, { 3, 2, 1 }));
     tetrahedron.addTriangle(Triangle({ 0, 3, 1 }, { 3, 0, 2 }));
     tetrahedron.addTriangle(Triangle({ 0, 2, 3 }, { 3, 1, 0 }));
@@ -1101,7 +1102,7 @@ int main() {
     pyramide.addVertex(Vertex({ 1, 0, 0 }, 0));
     pyramide.addVertex(Vertex({ 1, 1, 0 }, 1));
     pyramide.addVertex(Vertex({ 0, 1, 0 }, 0));
-    pyramide.addVertex(Vertex({ 0.5, 0.5, 1 }, 2));
+    pyramide.addVertex(Vertex({ 0.5, 0.5, -1 }, 2)); // originally, z values were positive, but it makes so that the triangle are pointed inward the shape, which makes for an ugly render on some software (like Mesh Lab)
     pyramide.addTriangle(Triangle({ 0, 1, 3 }, { 1, 3, 4 }));
     pyramide.addTriangle(Triangle({ 1, 2, 3 }, { 2, 0, 5 }));
     pyramide.addTriangle(Triangle({ 2, 4, 3 }, { 3, 1, 5 }));
@@ -1119,7 +1120,8 @@ int main() {
     // 2D bounding box
     Mesh bounding_box;
 
-    bounding_box.addVertex(Vertex({ 0, 0, 10 }, 2, true)); // virtual infini vertex
+    bounding_box.addVertex(Vertex({ 0, 0, -10 }, 2, true)); // virtual infini vertex
+    // originally, z values were positive, but it makes so that the triangle are pointed inward the shape, which makes for an ugly render on some software (like Mesh Lab)
     bounding_box.addVertex(Vertex({ 0, 0, 0 }, 0));
     bounding_box.addVertex(Vertex({ 1, 0, 0 }, 0));
     bounding_box.addVertex(Vertex({ 1, 2, 0 }, 1));
@@ -1318,7 +1320,8 @@ int main() {
 
     Mesh small_triangulation;
     
-    small_triangulation.addVertex(Vertex({0, 0, 10}, 1, true)); // "infinite" virtual vertex
+    small_triangulation.addVertex(Vertex({0, 0, -10}, 1, true)); // "infinite" virtual vertex
+    // originally, z values were positive, but it makes so that the triangle are pointed inward the shape, which makes for an ugly render on some software (like Mesh Lab)
 
     // Creating a first triangle and 3 virtual triangle to connect it to the infinite vertex
     small_triangulation.addVertex(Vertex({ 0, 0, 0 }, 0));
@@ -1369,10 +1372,14 @@ int main() {
     // Write the off file with optionnaly the virtual infinite vertex
     small_triangulation.vertices[0].is_virtual = true; // set to false to visualize infinite virtual vertex and virtual triangles
     small_triangulation.writeOFF("files/TP3_out/small_triangulation.off");
+    small_triangulation.vertices[0].is_virtual = true;
+
 
     // Use lawson algorithm to make the triangulation delaunay    
     small_triangulation.delaunay();
+    small_triangulation.vertices[0].is_virtual = true; // set to false to visualize infinite virtual vertex and virtual triangles
     small_triangulation.writeOFF("files/TP3_out/small_triangulation_delaunay.off");
+    small_triangulation.vertices[0].is_virtual = true;
 
     // Lift the triangulation on the paraboloid 
     small_triangulation.toSphereSpace(); // to lift the triangulation on the paraboloid
@@ -1383,11 +1390,15 @@ int main() {
 
     Mesh triangulation;
     std::pair<std::vector<double>, std::vector<int>> res{ triangulation.naiveTriangulationFromFile("files/" + filename + ".txt", 0.00015) };
+    triangulation.vertices[0].is_virtual = true; // set to false to visualize infinite virtual vertex and virtual triangles
     triangulation.writeOFF("files/TP3_out/" + filename + "_naive.off");
+    triangulation.vertices[0].is_virtual = true;
 
     // Apply Lawson algorithm
     triangulation.delaunay();
+    triangulation.vertices[0].is_virtual = true; // set to false to visualize infinite virtual vertex and virtual triangles
     triangulation.writeOFF("files/TP3_out/" + filename + "_delaunay.off");
+    triangulation.vertices[0].is_virtual = true;
 
     // Lift on the paraboloid
     triangulation.toSphereSpace();
